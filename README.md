@@ -1,217 +1,236 @@
 # 💊 Pharma CAPA Simulator
 
-> An AI-powered role-play simulator that lets pharmacy students practice **CAPA (Corrective and Preventive Action)** meetings, with AI agents playing the other members of the team.
+> **Run the CAPA meeting before the real one.** A web app where industrial pharmacy students practice **CAPA (Corrective and Preventive Action)** meetings with AI colleagues from Production, QA and QC.
 
-Built for the **Faculty of Pharmacy, Chiang Mai University** · Piloted with faculty and students in **October 2026**
+Built for the **Faculty of Pharmacy, Chiang Mai University** as a project for *204361 Software Engineering* (semester 1/2026) · Piloted by faculty and students on **2 October 2026**
 
-<!-- TODO: add a screenshot or GIF of a meeting session here -->
-<!-- ![Demo](docs/demo.gif) -->
+![Landing page](docs/images/landing.png)
 
 ---
 
 ## 📖 Overview
 
-In the pharmaceutical industry, a CAPA meeting brings together **Production (PD)**, **Quality Assurance (QA)** and **Quality Control (QC)** to investigate a quality problem, find its root cause and agree on corrective and preventive actions. These meetings are hard to practice in a classroom because each student needs a full team to play against.
+Pharmaceutical factories working under GMP hold cross-department CAPA meetings whenever a quality problem occurs. The team has to find the root cause from real evidence (batch records, lab results, SOPs) and agree on corrective and preventive actions with a way to check that they work.
 
-With Pharma CAPA Simulator:
+Students rarely get to practice this before their internships:
 
-1. **Teachers** create CAPA scenarios, attach evidence documents (batch records, deviation reports and so on) and define a grading rubric.
-2. **Students** pick a scenario and **choose one role**: PD, QA or QC.
-3. **AI agents play the other roles** in a live meeting, answering from the scenario evidence and their department's domain knowledge.
-4. Students draft the **CAPA form**, which is **graded against the teacher's rubric**, and teachers review and give feedback.
+- A realistic meeting needs several players and a believable case.
+- Setting up cases and grading reports one student at a time takes a lot of teacher time.
+- Students tend to jump to a root cause without asking for evidence first.
+
+**Pharma CAPA Simulator is a practice ground.** The student plays one role and **AI plays the other two**. The AI colleagues answer from professional documents and **ask for evidence before accepting a conclusion**.
 
 ## ✨ Features
 
-### For students
-- 🎭 **Role selection**: play PD, QA or QC; the remaining roles are filled by AI personas
-- 💬 **Real-time meetings** over WebSocket, with typing indicators
-- 🔗 **Cited answers**: AI replies point back to the evidence documents they used
-- 📝 **CAPA form drafting**: content is extracted from the meeting into a CAPA form that can be exported as a Word report
-- 📊 **Grading and feedback**: AI grading against the teacher's rubric, plus written feedback from teachers
-- 🕘 **History** of past meetings and results
+### 👩‍🎓 For students
+- **Choose a role**: Production (PD), Quality Assurance (QA) or Quality Control (QC)
+- **Pick a scenario** from the library and read its evidence before the meeting
+- **Meet with AI colleagues** in real time; every answer names the document it comes from
+- **CAPA form fills in automatically** from what the student says (not from what the AI says). *End & summarize* unlocks once all four required sections are complete
+- **Download the CAPA report** as DOCX or PDF, built from the faculty's own report template
+- **History** page to continue or review past meetings, with a notification dot when a teacher updates a score or feedback
 
-### For teachers
-- 📚 **Scenario library**: create and edit CAPA scenarios
-- 📎 **Evidence documents**: upload and edit the documents attached to each scenario
-- ✅ **Rubrics**: define how student work is scored
-- 🧑‍🏫 **Review**: read meetings, adjust scores and leave comments
+### 👨‍🏫 For teachers
+- **Scenario builder**: create scenarios, evidence documents (text, tables and charts) and grading rubrics
+- **Dashboard**: participation and average scores per scenario, with a switch to open or close each scenario
+- **AI grading with oversight**: see how the AI scored each rubric category (pass/fail with reasons), then edit the score and recommendation
+- **Automatic re-grading** of finished meetings when a rubric changes, without overwriting scores set by teachers
+- **User management**: promote students to teachers or the reverse
 
-### AI pipeline
-- 🧭 **AI router**: decides which AI role should respond to each message
-- 🧑‍🔬 **Role personas**: each role has its own system prompt (`PD.txt`, `QA.txt`, `QC.txt`)
-- 🔍 **Two-layer RAG**:
-  - **Scenario evidence**: documents attached to the current scenario
-  - **General knowledge base**: shared domain references organized by role (`PD`, `QA`, `QC`, `Share`)
-- 🧾 **Summarizer**: compresses older messages so long meetings stay within the model's context
-- 🛡️ **Guardrails and limits**: response retries, per-student session limits, turn rate limits, timeouts and a monthly LLM spend cap
+### 🛡️ Platform
+- Sign-up with a CMU email, verified by a 6-digit code (AWS SES)
+- Bilingual (Thai/English) privacy notice with recorded consent, following PDPA
+- Role-based access on every API, bcrypt password hashing and limited OTP attempts
+- Responsive layout, tested on 11 screen sizes
 
-### Platform
-- 🔐 **Authentication** restricted to `@cmu.ac.th` emails, with student and teacher roles and email OTP verification
-- 🔒 **Privacy notice** that users must accept before using the system
+| Role selection | Meeting with AI |
+|---|---|
+| ![Role selection](docs/images/role-selection.png) | ![Meeting](docs/images/meeting.png) |
+
+| CAPA report | Teacher dashboard |
+|---|---|
+| ![CAPA report](docs/images/capa-report.png) | ![Teacher dashboard](docs/images/teacher-dashboard.png) |
 
 ## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-    S[👩‍🎓 Student] --> FE[Next.js Frontend]
-    T[👨‍🏫 Teacher] --> FE
-    FE <-->|REST + WebSocket| BE[FastAPI Backend]
-    BE <--> PG[(PostgreSQL 16)]
-    BE <--> VDB[(ChromaDB)]
-    BE <--> LLM[OpenRouter<br/>Gemini 3.1 Flash-Lite]
+    U[👩‍🎓 Student / 👨‍🏫 Teacher] -->|HTTPS| CAD[Caddy<br/>reverse proxy + TLS]
+    CAD --> FE[Next.js Frontend]
+    CAD --> BE[FastAPI Backend]
+    FE <-->|REST + WebSocket| BE
+    BE <--> PG[(PostgreSQL 16<br/>AWS RDS)]
+    BE <--> VDB[(ChromaDB<br/>embedded)]
+    BE <--> OR[OpenRouter<br/>LLM API]
+    BE --> SES[AWS SES<br/>OTP email]
+    BE --> LO[LibreOffice<br/>DOCX → PDF]
 ```
 
-### Meeting turn flow
+The backend has three layers: **routers** take requests, **modules** hold pure business rules, and **adapters** talk to PostgreSQL, ChromaDB, OpenRouter, SES and LibreOffice. Modules can therefore be tested with fake adapters.
+
+### One meeting turn
 
 ```mermaid
 flowchart TB
-    M[Student message] --> R{AI Router}
-    R -->|picks responding role| P[Role persona<br/>PD / QA / QC]
-    subgraph RAG["🔍 Retrieval"]
-        E[(Scenario evidence<br/>top-k = 5)]
-        K[(General knowledge<br/>top-k = 3)]
-    end
-    E --> C[Prompt: persona + retrieved context<br/>+ summary + recent messages]
-    K --> C
-    P --> C
-    C --> L[LLM via OpenRouter]
-    L --> A[AI reply with citations]
+    M[Student message<br/>via WebSocket] --> Q[Save message + queue turn]
+    Q --> R{AI Router<br/>picks 1–2 roles to reply}
+    R --> RAG[Retrieve from ChromaDB<br/>scenario evidence + general knowledge]
+    RAG --> P[Build prompt<br/>role persona + problem statement + briefing]
+    P --> L[AI persona replies]
+    L --> G{Guardrails<br/>cites real documents?<br/>no false 'meeting can end'?}
+    G -->|fail| L
+    G -->|pass| S[Send reply via WebSocket]
+    S --> F[Extract CAPA form from the student's words]
+    F -->|4/4 sections| E[End & summarize unlocked]
+    E --> GR[AI grading by rubric<br/>+ CAPA report DOCX/PDF]
 ```
 
-### Document ingestion
+### RAG
 
-```mermaid
-flowchart LR
-    D1[Teacher uploads<br/>scenario evidence] --> CH[Chunking]
-    D2[AI_knowledge/<br/>PD · QA · QC · Share] -->|sync_ai_knowledge.py| CH
-    CH --> EM[Embed with<br/>multilingual-e5-small]
-    EM --> V[(ChromaDB)]
-```
+ChromaDB holds two collections, both embedded with [`intfloat/multilingual-e5-small`](https://huggingface.co/intfloat/multilingual-e5-small), which supports Thai:
 
-| Setting | Scenario evidence | General knowledge |
-|---|---|---|
-| Chunk size | 1,000 | 1,200 |
-| Chunk overlap | 150 | 180 |
-| Top-k retrieved | 5 | 3 |
+| Collection | Source | Chunk size / overlap | Top-k |
+|---|---|---|---|
+| `scenario_evidence` | Evidence documents that teachers write for each scenario | 1,000 / 150 | 5 |
+| `ai_general_knowledge` | Shared professional references in `AI_knowledge/{PD,QA,QC,Share}/*.md` | 1,200 / 180 | 3 |
+
+Documents students should not see, such as the instructor answer key, rubrics and guardrails, are **never indexed**. If an answer does not cite a document it was given, the persona is asked to answer again once.
+
+### AI models (via OpenRouter)
+
+| Task | Model |
+|---|---|
+| AI Router, PD/QA/QC personas, summarizer | `google/gemini-3.1-flash-lite` |
+| CAPA form extraction, failover model | `openai/gpt-4o-mini` |
+| Rubric grading | `openai/gpt-5.6-luna` |
+
+Every call has a 25-second timeout and switches to the backup model if the main one fails. The AI keeps the last 12 messages and a summary of older ones. Switching to Gemini 3.1 Flash-Lite and moving the summarizer out of the turn cut the response time from about **14.9 s to 4.9 s** (median 4.58 s over 26 turns).
 
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js, TypeScript |
-| Backend | FastAPI (Python), WebSocket, [uv](https://github.com/astral-sh/uv) |
-| Database | PostgreSQL 16, Alembic migrations |
-| Vector database | ChromaDB (embedded) |
-| Embedding model | [`intfloat/multilingual-e5-small`](https://huggingface.co/intfloat/multilingual-e5-small) |
-| LLM | `google/gemini-3.1-flash-lite` via [OpenRouter](https://openrouter.ai) (router, personas and summarizer) |
-| Auth | JWT, email OTP; Microsoft Entra External ID / AWS Cognito supported |
-| Testing | pytest, Vitest, Playwright |
-| Infrastructure | Docker Compose, Caddy, AWS (S3, CloudFront, CloudWatch), Sentry |
-
-## 📁 Project Structure
-
-```
-.
-├── AI_knowledge/          # General knowledge base (PD / QA / QC / Share markdown)
-├── backend/
-│   ├── alembic/           # Database migrations
-│   ├── app/
-│   │   ├── adapters/      # External integrations (OpenRouter, email, Entra, ...)
-│   │   ├── core/          # Config, database, security
-│   │   ├── models/        # SQLAlchemy models
-│   │   ├── modules/       # Business logic (chat, router, RAG, grading, ...)
-│   │   └── routers/       # API endpoints
-│   ├── prompts/           # System prompts for router, personas, grading, summarizer
-│   ├── scripts/           # Knowledge sync, user management, deployment checks
-│   └── tests/
-├── frontend/
-│   ├── e2e/               # Playwright tests
-│   └── src/
-│       ├── app/           # Next.js pages (chat, scenario-library, dashboard, ...)
-│       ├── components/
-│       └── lib/
-├── docs/                  # Local development and project structure guides
-├── infra/                 # Production configuration
-└── compose.yaml
-```
+| Frontend | Next.js, React, TypeScript |
+| Backend | FastAPI, Pydantic, WebSocket, SQLAlchemy, Alembic |
+| Database | PostgreSQL 16 |
+| AI / RAG | ChromaDB, sentence-transformers, multilingual-e5-small, OpenRouter (OpenAI SDK) |
+| Reports | python-docx, LibreOffice (headless) |
+| Auth | PyJWT, bcrypt, email OTP |
+| Testing | pytest, Vitest, Testing Library, Playwright, mutation testing |
+| Code quality | Ruff, ESLint |
+| DevOps | Docker Compose, uv, Caddy, GitHub Actions |
+| Cloud | AWS EC2, RDS and SES (Bangkok and Singapore regions) |
 
 ## 🚀 Getting Started
 
-See [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) for the full guide.
+Full guides: [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) (Linux, Windows and running without Docker).
 
 ### Prerequisites
 
 - Docker and Docker Compose
 - An [OpenRouter](https://openrouter.ai) API key
+- The `AI_knowledge/` folder (not stored in git; ask the team for `AI_knowledge.zip`)
 
-### Run with Docker Compose
-
-```bash
-git clone https://github.com/MaMuangHub/pharma-capa-simulator.git
-cd pharma-capa-simulator
-
-# Create the backend environment file and fill in the values (never commit real keys)
-cp .env.example backend/.env   # TODO: confirm the location of .env.example
-
-docker compose up --build
-```
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000/api/v1
-
-In local development, OTP codes are written to the backend log instead of being emailed:
+### Run locally (Linux / macOS)
 
 ```bash
-docker compose logs backend | grep auth.otp_code
+# 1. Configuration: set OPENROUTER_API_KEY; other values have working defaults
+cp backend/.env.example backend/.env
+
+# 2. Knowledge base (do this BEFORE the first start)
+unzip ~/Downloads/AI_knowledge.zip -d .      # should contain PD/ QA/ QC/ Share/
+
+# 3. Start everything (= docker compose up --detach --build)
+make docker-up
+
+# 4. Check health
+curl http://localhost:8000/health
+curl http://localhost:8000/ready
 ```
 
-### Key environment variables
+Then open http://localhost:3000. The first start takes several minutes while the backend runs migrations, syncs the knowledge base and loads the embedding model.
 
-| Variable | Description |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET_KEY` | Secret for signing access tokens |
-| `OPENROUTER_API_KEY` | API key for OpenRouter |
-| `CAPA_ROUTER_MODEL` / `CAPA_PERSONA_MODEL` / `CAPA_SUMMARIZER_MODEL` | Models used for each AI task |
-| `EMBEDDING_MODEL` | Embedding model for RAG |
-| `CHROMA_PERSIST_DIRECTORY` | Where ChromaDB stores its data |
-| `AI_KNOWLEDGE_SOURCE_PATH` | Source of the general knowledge base (local path or `s3://`) |
-| `AUTH_ALLOWED_EMAIL_DOMAINS` | Email domains allowed to sign in |
+### Create accounts
 
-### Sync the general knowledge base
+1. Register at http://localhost:3000/register with an `@cmu.ac.th` email. Locally, the OTP code is written to the log instead of being emailed:
+   ```bash
+   docker compose logs backend | grep auth.otp_code
+   ```
+2. Create the first teacher (use an email that has no account yet):
+   ```bash
+   docker compose exec backend python scripts/manage_user.py <email> --role teacher --name "First Teacher"
+   ```
+3. Sign in as the teacher, create a scenario with its documents and rubric, then switch it on in the Dashboard.
 
-```bash
-cd backend
-uv run python scripts/sync_ai_knowledge.py
+Stop with `make docker-down`. Data is kept; `docker compose down --volumes` deletes everything.
+
+## 📁 Project Structure
+
+```
+.
+├── AI_knowledge/        # Shared knowledge base (PD / QA / QC / Share), not in git
+├── backend/
+│   ├── alembic/         # 29 database migrations
+│   ├── app/
+│   │   ├── routers/     # API and WebSocket endpoints
+│   │   ├── modules/     # Business rules (meeting, router, RAG, grading, CAPA form, ...)
+│   │   ├── adapters/    # PostgreSQL, ChromaDB, OpenRouter, SES, LibreOffice
+│   │   ├── models/      # SQLAlchemy models
+│   │   └── core/        # Config, database, security
+│   ├── prompts/         # Router, PD/QA/QC personas, grading, summarizer, CAPA report template
+│   ├── scripts/         # Knowledge sync, user management, deployment checks
+│   └── tests/           # pytest
+├── frontend/
+│   ├── src/app/         # Pages: role selection, scenarios, chat, history, dashboard, ...
+│   ├── src/components/
+│   └── e2e/             # Playwright
+├── infra/production/    # Caddyfile and production env template
+├── docs/
+└── compose.yaml, compose.production.yaml, Makefile
 ```
 
-### Run tests
+## 🗄️ Database
 
-```bash
-cd backend && uv run pytest
-cd frontend && npm test
-```
+PostgreSQL 16 with SQLAlchemy 2 and Alembic. The main entities are users, scenarios with their documents, answer keys and rubrics, meetings (chats and messages), AI routing decisions, CAPA forms and plans, and teacher feedback.
 
-## 🗄️ Database Design
+![ER diagram](docs/images/er-diagram.png)
 
-The PostgreSQL schema covers users, scenarios and their documents, meetings (chats and messages), AI routing decisions, CAPA forms and plans, rubrics, feedback and email verification. Changes are managed with Alembic migrations.
+## ✅ Testing & Quality
 
-<!-- TODO: add an ER diagram image or a mermaid erDiagram of the real tables -->
-<!-- ![ER Diagram](docs/er-diagram.png) -->
+| Suite | Size | Latest result |
+|---|---|---|
+| Backend (pytest, SQLite and a fake AI, so it runs free and gives stable results) | 412 tests in 36 files | 412/412 passed locally |
+| Frontend (Vitest + Testing Library) | 94 tests in 16 files | 94/94 passed, ESLint and `next build` passed |
+| Browser check (Playwright against the production container) | 1 spec | passed |
 
-## 👥 Team & Contributions
+GitHub Actions runs lint, tests and build on every push. The team also used **mutation testing** (deliberately planting bugs to check that tests catch them) and manual browser checks before each release.
 
-<!-- TODO: add teammates' names and roles -->
+## 🧪 Pilot & Feedback
 
-| Member | Responsibilities |
-|---|---|
-| **Thanaphat Penphaen** ([@thanaphat123](https://github.com/thanaphat123)) | • **Database design**: PostgreSQL schema (tables, data formats and storage)<br>• **Scenario knowledge storage**: storing scenario knowledge uploaded by teachers<br>• **RAG pipeline**: chunking, embedding with multilingual-e5-small into ChromaDB, and simple RAG so each AI role answers students from scenario evidence<br>• **AI grading**: scoring the conversation and giving students feedback when a meeting ends<br>• **AI CAPA report**: filling in the CAPA report form from the meeting for students to download and submit |
-| _Teammate_ | _Role_ |
+The four faculty clients and their students tried the system on **2 October 2026**. Feedback that was fixed afterwards:
 
-## 🧪 Pilot
+- The CAPA report opens only after *End & summarize*
+- Students see only the teacher's score, not the raw AI score
+- A notification dot appears when a teacher updates feedback
+- Teachers can see the AI's score for each rubric category, and finished meetings are re-graded automatically when a rubric changes
+- A Users page for changing roles
+- The AI no longer claims the meeting can end while the button is still locked (0 out of 10 times after the fix)
 
-The system was opened for testing by teachers and students of the Faculty of Pharmacy, Chiang Mai University in **October 2026**. Teachers reported that it met the core requirements of the course. Improving the frontend design is planned as a next step.
+## 👥 Team
 
-## 🙏 Acknowledgements
+| Member | Roles | Main work |
+|---|---|---|
+| **Thanaphat Penphaen** ([@thanaphat123](https://github.com/thanaphat123)) | Database Engineer, Software Architect, Requirements Manager | Database design, backend design, RAG document search (chunking and embedding into ChromaDB), CAPA form and DOCX/PDF report, AI grading by rubric, teacher tools for scenarios, documents and rubrics |
+| นายอนุพงศ์ เอกวโรดม | Database Engineer, Requirements Manager | Data model, AI Router, client requirements |
+| นายอภิเชษฐ์ มาลัย | Scrum Master, DevOps | Sprint ceremonies, CI on GitHub Actions, full browser testing, mutation testing |
+| นายภัทรพงศ์ ต๊อดแก้ว | Testing Manager, DevOps | Docker Compose environment, AWS deployment, UI fixes, release checks |
 
-- Faculty of Pharmacy, Chiang Mai University, for the project requirements and domain expertise
+**Clients (Faculty of Pharmacy, Chiang Mai University):** ผศ.ดร.ภญ. เพ็ญนภา เสาร์คำ, รศ.ดร.ภก. ปรัชญา ทิพย์ดวงตา, รศ.ดร.ภก. ฐกร จันทะดี, อ.ดร.ภก. นภพล ภูยาธร
+
+## 🔭 Known Limitations
+
+- RAG is vector-only and retrieval quality has not been measured yet (next step: a test question set and hybrid search)
+- The context window counts messages, not tokens
+- Replies are not streamed, because the guardrail must see the full answer first
+- Load with 100 concurrent users talking to the AI has not been tested
+- No self-service password reset (admins use `scripts/manage_user.py --reset-password`)
