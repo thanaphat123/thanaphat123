@@ -13,7 +13,6 @@ An AI role-play simulator where pharmacy students practice **CAPA meetings** by 
 
 - **My role:** Database Engineer & Software Architect. I designed the PostgreSQL database, built the RAG pipeline (chunking, multilingual-e5-small, ChromaDB), rubric-based AI grading and the CAPA report generator (DOCX/PDF).
 - **Tech:** FastAPI · Next.js · PostgreSQL · ChromaDB · OpenRouter · Docker · AWS
-- 📄 [Project details](https://github.com/thanaphat123/pharma-capa-simulator)
 
 ### 📅 [Appointment & Slot Booking System](https://github.com/thanaphat123/slot-booking-system)
 A web app where hosts create events with bookable time slots and users book, track and cancel sessions, with a dashboard, calendar and admin tools.
