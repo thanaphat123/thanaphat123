@@ -30,9 +30,8 @@ A RAG chatbot that answers sleep-health questions using reference documents.
 
 ## 🛠️ Tech Stack
 
-**Languages:** Python · C++ · SQL · JavaScript / TypeScript
+**Languages:** Python · C++ · SQL
 **Backend:** FastAPI · Flask · SQLAlchemy · Alembic
-**Frontend:** Next.js · Vue.js · Streamlit
 **AI / LLM:** RAG · ChromaDB · Hugging Face embeddings · OpenRouter
 **Databases:** PostgreSQL
 **DevOps & Tools:** Docker · GitHub · Jira
@@ -41,4 +40,4 @@ A RAG chatbot that answers sleep-health questions using reference documents.
 
 ## 📫 Contact
 
-[GitHub](https://github.com/thanaphat123)
+📧 thanaphat.pen48@gmail.com · 💼 [LinkedIn](https://www.linkedin.com/in/thanaphat-penphaen) · 🐙 [GitHub](https://github.com/thanaphat123)
